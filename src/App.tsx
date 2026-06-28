@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { format, isToday, isBefore, startOfDay, parseISO, differenceInDays, addDays } from 'date-fns';
+import { format, isToday, isBefore, startOfDay, parseISO, differenceInDays, addDays, startOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar, BookOpen, GraduationCap, Plus, CheckCircle2, Circle, Trash2, Clock, Moon, Sun, Download, Upload, BarChart2, Star, Heart, Sparkles, Lock, CalendarDays, ArrowUp, ArrowDown, Activity, Users, Target, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1334,6 +1334,7 @@ export default function App() {
     const days: DayOfWeek[] = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const todayStr = format(new Date(), 'yyyy-MM-dd');
     const todayDayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][new Date().getDay()];
+    const currentWeekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     
     return (
       <div className="space-y-6">
@@ -1387,8 +1388,9 @@ export default function App() {
         )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {days.map(day => {
+          {days.map((day, dayIdx) => {
             const isToday = day === todayDayName;
+            const dayDateStr = format(addDays(currentWeekStart, dayIdx), 'yyyy-MM-dd');
             const dayEntries = schedule.filter(s => s.day === day && (s.section || 'morning') === scheduleActiveTab);
             
             return (
@@ -1411,7 +1413,7 @@ export default function App() {
                 </CardHeader>
                 <CardContent className="pt-4 flex-1 flex flex-col gap-2">
                   {dayEntries.map(entry => {
-                    const isCompletedToday = entry.completedDates?.includes(todayStr);
+                    const isCompletedToday = entry.completedDates?.includes(dayDateStr);
                     const styles = getMateriaStyles(entry.materia, !!isCompletedToday);
                     
                     return (
@@ -1419,7 +1421,7 @@ export default function App() {
                         key={entry.id} 
                         onClick={() => {
                           if (scheduleActiveTab === 'afternoon') {
-                            toggleScheduleEntryCompleted(entry.id, todayStr);
+                            toggleScheduleEntryCompleted(entry.id, dayDateStr);
                           }
                         }}
                         className={`flex items-center justify-between border p-3 rounded-lg transition-all ${
