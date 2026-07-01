@@ -402,26 +402,32 @@ export default function App() {
     if (!task.topicId) return true; // General tasks
     
     const topicTasks = tasks.filter(t => t.topicId === task.topicId);
-    const isCompleted = (type: string) => topicTasks.some(t => t.type === type && t.status === 'completed');
+    
+    const isDependencySatisfied = (types: string | string[]) => {
+      const depList = Array.isArray(types) ? types : [types];
+      const activeDeps = depList.filter(type => topicTasks.some(t => t.type === type));
+      if (activeDeps.length === 0) return true;
+      return activeDeps.some(type => topicTasks.some(t => t.type === type && t.status === 'completed'));
+    };
     
     if (task.type === 'Estudiar') return true;
-    if (task.type === 'Apunte') return isCompleted('Estudiar');
-    if (task.type === 'Flashcards' || task.type === 'Crear Flashcards') return isCompleted('Apunte');
+    if (task.type === 'Apunte') return isDependencySatisfied('Estudiar');
+    if (task.type === 'Flashcards' || task.type === 'Crear Flashcards') return isDependencySatisfied('Apunte');
     
     if (task.type.startsWith('Repaso')) {
-      if (!isCompleted('Flashcards') && !isCompleted('Crear Flashcards')) return false;
+      if (!isDependencySatisfied(['Flashcards', 'Crear Flashcards'])) return false;
       const numMatch = task.type.match(/\d+/);
       if (numMatch) {
         const num = parseInt(numMatch[0]);
-        if (num > 1 && !isCompleted(`Repaso ${num - 1}`) && !isCompleted(`Repaso Flashcards ${num - 1}`)) return false;
+        if (num > 1 && !isDependencySatisfied(`Repaso ${num - 1}`) && !isDependencySatisfied(`Repaso Flashcards ${num - 1}`)) return false;
       }
       return true;
     }
     
     if (task.type.startsWith('Práctica') || task.type === 'Rehacer Práctica') {
-      if (!isCompleted('Flashcards') && !isCompleted('Crear Flashcards')) return false;
-      if (task.type === 'Práctica 2' && !isCompleted('Práctica 1')) return false;
-      if (task.type === 'Rehacer Práctica' && !isCompleted('Práctica')) return false;
+      if (!isDependencySatisfied(['Flashcards', 'Crear Flashcards'])) return false;
+      if (task.type === 'Práctica 2' && !isDependencySatisfied('Práctica 1')) return false;
+      if (task.type === 'Rehacer Práctica' && !isDependencySatisfied('Práctica')) return false;
       return true;
     }
 
