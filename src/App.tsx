@@ -33,6 +33,18 @@ const getCourseOfMateria = (materia: Materia): Curso | 'Otro' => {
 };
 
 const getMateriaStyles = (materia: Materia, isCompleted: boolean) => {
+  if (materia === 'EXAMEN') {
+    return {
+      card: isCompleted 
+        ? 'bg-rose-600 text-white border-rose-700 dark:bg-rose-700 dark:border-rose-600 ring-2 ring-rose-500/20' 
+        : 'bg-red-50/70 hover:bg-red-100/70 text-red-900 border-red-200 dark:bg-red-950/20 dark:text-red-300 dark:border-red-900/50 dark:hover:border-red-800/80',
+      checkbox: isCompleted
+        ? 'bg-rose-700 border-rose-700 text-white'
+        : 'border-red-300 dark:border-red-800',
+      text: isCompleted ? 'text-white line-through font-bold' : 'text-red-900 dark:text-red-200 font-bold',
+      badge: 'bg-rose-500/20 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400 border-rose-200/50 hover:bg-rose-500/30 dark:hover:bg-rose-500/20'
+    };
+  }
   const course = getCourseOfMateria(materia);
   
   switch (course) {
@@ -1426,20 +1438,14 @@ export default function App() {
                       <div 
                         key={entry.id} 
                         onClick={() => {
-                          if (scheduleActiveTab === 'afternoon') {
-                            toggleScheduleEntryCompleted(entry.id, dayDateStr);
-                          }
+                          toggleScheduleEntryCompleted(entry.id, dayDateStr);
                         }}
-                        className={`flex items-center justify-between border p-3 rounded-lg transition-all ${
-                          scheduleActiveTab === 'afternoon' ? 'cursor-pointer select-none' : ''
-                        } ${styles.card}`}
+                        className={`flex items-center justify-between border p-3 rounded-lg transition-all cursor-pointer select-none ${styles.card}`}
                       >
                         <div className="flex items-center gap-2">
-                          {scheduleActiveTab === 'afternoon' && (
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${styles.checkbox}`}>
-                              {isCompletedToday && <Check className="w-3 h-3 stroke-[3]" />}
-                            </div>
-                          )}
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${styles.checkbox}`}>
+                            {isCompletedToday && <Check className="w-3 h-3 stroke-[3]" />}
+                          </div>
                           <span className={`text-sm font-semibold transition-colors ${styles.text}`}>{entry.materia}</span>
                         </div>
                         <button 
@@ -1872,6 +1878,7 @@ export default function App() {
               value={newScheduleEntry.materia} 
               onChange={(e) => setNewScheduleEntry({ ...newScheduleEntry, materia: e.target.value as Materia })}
             >
+              <option value="EXAMEN">EXAMEN</option>
               {Object.values(CURSOS_MATERIAS).flat().map(m => <option key={m} value={m}>{m}</option>)}
             </Select>
           </div>
@@ -1982,6 +1989,7 @@ export default function App() {
               onChange={(e) => setNewExam({ ...newExam, materia: e.target.value as any })}
             >
               <option value="Todas">Todas las materias</option>
+              <option value="EXAMEN">EXAMEN</option>
               {Object.values(CURSOS_MATERIAS).flat().map(m => <option key={m} value={m}>{m}</option>)}
             </Select>
           </div>

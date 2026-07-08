@@ -14,7 +14,8 @@ export type Materia =
   | 'INGLÉS' 
   | 'ARITMÉTICA' | 'ÁLGEBRA' | 'GEOMETRÍA' | 'TRIGONOMETRÍA' 
   | 'LENGUAJE' | 'LITERATURA' 
-  | 'RAZ. LÓGICO' | 'RAZ. MATEMÁTICO' | 'RAZ. VERBAL';
+  | 'RAZ. LÓGICO' | 'RAZ. MATEMÁTICO' | 'RAZ. VERBAL'
+  | 'EXAMEN';
 
 export type TaskType = string;
 
