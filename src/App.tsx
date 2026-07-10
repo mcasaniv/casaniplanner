@@ -1438,6 +1438,9 @@ export default function App() {
                       <div 
                         key={entry.id} 
                         onClick={() => {
+                          if (!isCompletedToday) {
+                            triggerAnimation();
+                          }
                           toggleScheduleEntryCompleted(entry.id, dayDateStr);
                         }}
                         className={`flex items-center justify-between border p-3 rounded-lg transition-all cursor-pointer select-none ${styles.card}`}
