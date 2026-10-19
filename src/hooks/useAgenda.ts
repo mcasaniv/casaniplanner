@@ -292,6 +292,82 @@ export function useAgenda() {
     setSchedule(prev => prev.filter(s => s.id !== id));
   };
 
+  const moveScheduleEntry = (entryId: string, direction: 'up' | 'down') => {
+    setSchedule(prev => {
+      const entry = prev.find(s => s.id === entryId);
+      if (!entry) return prev;
+      const entrySection = entry.section || 'morning';
+
+      const dayEntries = prev.filter(s => s.day === entry.day && (s.section || 'morning') === entrySection);
+      const currentIndexInDay = dayEntries.findIndex(s => s.id === entryId);
+      if (currentIndexInDay < 0) return prev;
+
+      const targetIndexInDay = direction === 'up' ? currentIndexInDay - 1 : currentIndexInDay + 1;
+      if (targetIndexInDay < 0 || targetIndexInDay >= dayEntries.length) return prev;
+
+      const targetEntry = dayEntries[targetIndexInDay];
+
+      const indexA = prev.findIndex(s => s.id === entry.id);
+      const indexB = prev.findIndex(s => s.id === targetEntry.id);
+      if (indexA < 0 || indexB < 0) return prev;
+
+      const newSchedule = [...prev];
+      newSchedule[indexA] = targetEntry;
+      newSchedule[indexB] = entry;
+      return newSchedule;
+    });
+  };
+
+  const moveScheduleEntryToDay = (entryId: string, targetDay: DayOfWeek, targetSection?: 'morning' | 'afternoon') => {
+    setSchedule(prev => prev.map(s => {
+      if (s.id !== entryId) return s;
+      return {
+        ...s,
+        day: targetDay,
+        section: targetSection !== undefined ? targetSection : s.section,
+      };
+    }));
+  };
+
+  const reorderScheduleEntryToPosition = (
+    sourceId: string, 
+    targetDay: DayOfWeek, 
+    targetSection: 'morning' | 'afternoon', 
+    targetIndex?: number
+  ) => {
+    setSchedule(prev => {
+      const source = prev.find(s => s.id === sourceId);
+      if (!source) return prev;
+
+      const updatedSource: ScheduleEntry = {
+        ...source,
+        day: targetDay,
+        section: targetSection,
+      };
+
+      const remaining = prev.filter(s => s.id !== sourceId);
+      const targetGroup = remaining.filter(s => s.day === targetDay && (s.section || 'morning') === targetSection);
+      
+      if (targetIndex === undefined || targetIndex < 0 || targetGroup.length === 0) {
+        return [...remaining, updatedSource];
+      }
+
+      if (targetIndex >= targetGroup.length) {
+        const lastItem = targetGroup[targetGroup.length - 1];
+        const lastIdx = remaining.findIndex(s => s.id === lastItem.id);
+        const copy = [...remaining];
+        copy.splice(lastIdx + 1, 0, updatedSource);
+        return copy;
+      } else {
+        const targetItem = targetGroup[targetIndex];
+        const targetGlobalIdx = remaining.findIndex(s => s.id === targetItem.id);
+        const copy = [...remaining];
+        copy.splice(targetGlobalIdx, 0, updatedSource);
+        return copy;
+      }
+    });
+  };
+
   const toggleScheduleEntryCompleted = (entryId: string, dateStr: string) => {
     setSchedule(prev => prev.map(s => {
       if (s.id !== entryId) return s;
@@ -345,5 +421,38 @@ export function useAgenda() {
     setMateriaConfigs(prev => ({ ...prev, [materia]: tasks }));
   };
 
-  return { topics, tasks, exams, schedule, habits, materiaConfigs, addTopic, toggleTask, addExam, deleteTopic, deleteExam, importData, updateExamScore, updateTopicMastery, updateTopicPartMastery, addTopicPart, removeTopicPart, incrementManualRepaso, reorderTopic, addCustomTask, addGeneralTask, deleteTask, addScheduleEntry, deleteScheduleEntry, toggleScheduleEntryCompleted, addHabit, toggleHabit, deleteHabit, updateMateriaConfig };
+  return { 
+    topics, 
+    tasks, 
+    exams, 
+    schedule, 
+    habits, 
+    materiaConfigs, 
+    addTopic, 
+    toggleTask, 
+    addExam, 
+    deleteTopic, 
+    deleteExam, 
+    importData, 
+    updateExamScore, 
+    updateTopicMastery, 
+    updateTopicPartMastery, 
+    addTopicPart, 
+    removeTopicPart, 
+    incrementManualRepaso, 
+    reorderTopic, 
+    addCustomTask, 
+    addGeneralTask, 
+    deleteTask, 
+    addScheduleEntry, 
+    deleteScheduleEntry, 
+    moveScheduleEntry,
+    moveScheduleEntryToDay,
+    reorderScheduleEntryToPosition,
+    toggleScheduleEntryCompleted, 
+    addHabit, 
+    toggleHabit, 
+    deleteHabit, 
+    updateMateriaConfig 
+  };
 }

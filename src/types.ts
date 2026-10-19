@@ -8,6 +8,7 @@ export type Curso =
   | 'Razonamiento';
 
 export type Materia = 
+  | 'Ciencias' | 'Matemática' | 'Comunicación' | 'DPCC' | 'Razonamiento' | 'Idioma' | 'Sociales'
   | 'FÍSICA' | 'BIOLOGÍA' | 'ANATOMÍA' | 'QUÍMICA' 
   | 'HISTORIA' | 'GEOGRAFÍA' | 'FILOSOFÍA' 
   | 'CÍVICA' | 'PSICOLOGÍA' 

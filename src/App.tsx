@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { format, isToday, isBefore, startOfDay, parseISO, differenceInDays, addDays, startOfWeek } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar, BookOpen, GraduationCap, Plus, CheckCircle2, Circle, Trash2, Clock, Moon, Sun, Download, Upload, BarChart2, Star, Heart, Sparkles, Lock, CalendarDays, ArrowUp, ArrowDown, Activity, Users, Target, Check, X } from 'lucide-react';
+import { Calendar, BookOpen, GraduationCap, Plus, CheckCircle2, Circle, Trash2, Clock, Moon, Sun, Download, Upload, BarChart2, Star, Heart, Sparkles, Lock, CalendarDays, ArrowUp, ArrowDown, Activity, Users, Target, Check, X, GripVertical, Menu, MoreHorizontal, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { useAgenda } from './hooks/useAgenda';
@@ -23,9 +23,12 @@ const getWeekBadgeClass = (week: number) => {
   return styles[(week - 1) % styles.length];
 };
 
-const getCourseOfMateria = (materia: Materia): Curso | 'Otro' => {
+const getCourseOfMateria = (materia: Materia | string): Curso | 'Otro' => {
+  if (['Ciencias', 'Sociales', 'DPCC', 'Idioma', 'Matemática', 'Comunicación', 'Razonamiento'].includes(materia as any)) {
+    return materia as Curso;
+  }
   for (const [curso, materias] of Object.entries(CURSOS_MATERIAS)) {
-    if (materias.includes(materia)) {
+    if (materias.includes(materia as any)) {
       return curso as Curso;
     }
   }
@@ -114,6 +117,17 @@ const getMateriaStyles = (materia: Materia, isCompleted: boolean) => {
         text: isCompleted ? 'text-white line-through font-bold' : 'text-sky-900 dark:text-sky-200',
         badge: 'bg-sky-500/20 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400 border-sky-200/50 hover:bg-sky-500/30 dark:hover:bg-sky-500/20'
       };
+    case 'Idioma':
+      return {
+        card: isCompleted 
+          ? 'bg-purple-500 text-white border-purple-600 dark:bg-purple-600 dark:border-purple-550 ring-2 ring-purple-500/20' 
+          : 'bg-purple-50/70 hover:bg-purple-100/70 text-purple-800 border-purple-200 dark:bg-purple-950/20 dark:text-purple-300 dark:border-purple-900/50 dark:hover:border-purple-800/80',
+        checkbox: isCompleted
+          ? 'bg-purple-600 border-purple-600 text-white'
+          : 'border-purple-300 dark:border-purple-800',
+        text: isCompleted ? 'text-white line-through font-bold' : 'text-purple-900 dark:text-purple-200',
+        badge: 'bg-purple-500/20 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400 border-purple-200/50 hover:bg-purple-500/30 dark:hover:bg-purple-500/20'
+      };
     default:
       return {
         card: isCompleted 
@@ -145,7 +159,40 @@ const DEFAULT_TUTORS = [
 ];
 
 export default function App() {
-  const { topics, tasks, exams, schedule, habits, materiaConfigs, addTopic, toggleTask, addExam, deleteTopic, deleteExam, importData, updateExamScore, updateTopicMastery, updateTopicPartMastery, addTopicPart, removeTopicPart, incrementManualRepaso, reorderTopic, addCustomTask, addGeneralTask, deleteTask, addScheduleEntry, deleteScheduleEntry, toggleScheduleEntryCompleted, addHabit, toggleHabit, deleteHabit, updateMateriaConfig } = useAgenda();
+  const { 
+    topics, 
+    tasks, 
+    exams, 
+    schedule, 
+    habits, 
+    materiaConfigs, 
+    addTopic, 
+    toggleTask, 
+    addExam, 
+    deleteTopic, 
+    deleteExam, 
+    importData, 
+    updateExamScore, 
+    updateTopicMastery, 
+    updateTopicPartMastery, 
+    addTopicPart, 
+    removeTopicPart, 
+    incrementManualRepaso, 
+    reorderTopic, 
+    addCustomTask, 
+    addGeneralTask, 
+    deleteTask, 
+    addScheduleEntry, 
+    deleteScheduleEntry, 
+    moveScheduleEntry,
+    moveScheduleEntryToDay,
+    reorderScheduleEntryToPosition,
+    toggleScheduleEntryCompleted, 
+    addHabit, 
+    toggleHabit, 
+    deleteHabit, 
+    updateMateriaConfig 
+  } = useAgenda();
   const [currentView, setCurrentView] = useState<View>('agenda');
   const [selectedWeeks, setSelectedWeeks] = useState<number[]>([]);
   const [isMateriaConfigModalOpen, setIsMateriaConfigModalOpen] = useState(false);
@@ -153,6 +200,11 @@ export default function App() {
   const [showWeeklyFrequency, setShowWeeklyFrequency] = useState(false);
   const [scheduleSummaryScope, setScheduleSummaryScope] = useState<'current' | 'all'>('current');
   const [scheduleSummaryFilter, setScheduleSummaryFilter] = useState<'scheduled' | 'all'>('scheduled');
+  const [draggedScheduleId, setDraggedScheduleId] = useState<string | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<DayOfWeek | null>(null);
+  const [dragOverEntryId, setDragOverEntryId] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [selectedScheduleDay, setSelectedScheduleDay] = useState<DayOfWeek | 'all'>('all');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('theme') === 'dark' || 
@@ -421,7 +473,7 @@ export default function App() {
   // New Schedule Entry State
   const [newScheduleEntry, setNewScheduleEntry] = useState<{ day: DayOfWeek; materia: Materia; section: 'morning' | 'afternoon' }>({
     day: 'Lunes' as DayOfWeek,
-    materia: 'FÍSICA' as Materia,
+    materia: 'Ciencias' as Materia,
     section: 'morning'
   });
 
@@ -645,22 +697,22 @@ export default function App() {
       const isTomorrowObjective = tomorrowObjectiveIds.includes(task.id);
 
       return (
-        <div className={`flex items-center justify-between p-3 mb-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700 transition-colors hover:border-slate-200 dark:hover:border-slate-600 ${isCompleted ? 'opacity-60' : ''}`}>
-          <div className="flex items-center gap-3">
+        <div className={`flex items-center justify-between p-2.5 sm:p-3 mb-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700 transition-colors hover:border-slate-200 dark:hover:border-slate-600 ${isCompleted ? 'opacity-60' : ''}`}>
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-2">
             <button 
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleToggleTask(task.id)} 
-              className={`transition-colors ${isCompleted ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`}
+              className={`shrink-0 transition-colors ${isCompleted ? 'text-emerald-500' : 'text-slate-400 hover:text-emerald-500'}`}
             >
               {isCompleted ? <CheckCircle2 className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
             </button>
-            <div>
-              <p className={`font-medium text-sm flex items-center gap-2 ${isCompleted ? 'text-slate-500 line-through dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'}`}>
+            <div className="min-w-0 flex-1">
+              <p className={`font-medium text-xs sm:text-sm truncate flex items-center gap-2 ${isCompleted ? 'text-slate-500 line-through dark:text-slate-400' : 'text-slate-900 dark:text-slate-100'}`}>
                 {task.type}
               </p>
               {topic && (
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{topic.tema}</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 truncate max-w-[130px] sm:max-w-xs">{topic.tema}</p>
                   {topic.week && (
                     <Badge variant="outline" className={`text-[9px] h-3.5 py-0 px-1 font-bold ${getWeekBadgeClass(topic.week)}`}>
                       S{topic.week}
@@ -670,21 +722,21 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-col items-end gap-0.5 sm:gap-1">
               {topic ? (
-                <div className="flex flex-col items-end gap-1">
-                  <Badge variant="secondary">{topic.materia}</Badge>
+                <div className="flex flex-col items-end gap-0.5 sm:gap-1">
+                  <Badge variant="secondary" className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5">{topic.materia}</Badge>
                   {getNextClassStatus(topic.materia) && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">
+                    <span className="text-[9px] sm:text-[10px] px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium whitespace-nowrap">
                       {getNextClassStatus(topic.materia)}
                     </span>
                   )}
                 </div>
               ) : (
-                <Badge variant="outline" className="text-slate-500 border-slate-300 dark:border-slate-600">General</Badge>
+                <Badge variant="outline" className="text-[10px] sm:text-xs text-slate-500 border-slate-300 dark:border-slate-600">General</Badge>
               )}
-              <span className={`text-[10px] font-medium ${isOverdue && !isCompleted ? 'text-red-500 dark:text-red-400' : isDueToday && !isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+              <span className={`text-[9px] sm:text-[10px] font-medium ${isOverdue && !isCompleted ? 'text-red-500 dark:text-red-400' : isDueToday && !isCompleted ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
                 {isCompleted ? 'Completado' : isOverdue ? 'Atrasado' : isDueToday ? 'Hoy' : format(parseISO(task.dueDate), "d MMM", { locale: es })}
               </span>
             </div>
@@ -731,20 +783,20 @@ export default function App() {
       .filter(Boolean);
 
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Agenda</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Agenda</h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-3 py-1.5 rounded-full font-bold">
-                <Sparkles className="h-4 w-4" />
+            <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-bold">
+                <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 <span>Racha: {streak} {streak === 1 ? 'día' : 'días'}</span>
               </div>
-              <Button onClick={() => setIsGeneralTaskModalOpen(true)} size="sm" className="gap-2">
-                <Plus className="h-4 w-4" /> Tarea General
+              <Button onClick={() => setIsGeneralTaskModalOpen(true)} size="sm" className="gap-1.5 text-xs sm:text-sm h-8 sm:h-9">
+                <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Tarea General
               </Button>
             </div>
           </div>
@@ -841,10 +893,13 @@ export default function App() {
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Temas Estudiados</h2>
-            <Button onClick={() => setIsTopicModalOpen(true)}>
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Temas Estudiados</h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Progreso y detalles de estudio por materia</p>
+            </div>
+            <Button onClick={() => setIsTopicModalOpen(true)} className="w-full sm:w-auto h-9 text-xs sm:text-sm">
               <Plus className="mr-2 h-4 w-4" /> Nuevo Tema
             </Button>
           </div>
@@ -912,7 +967,7 @@ export default function App() {
                             <ArrowDown className="h-5 w-5" />
                           </div>
                         </summary>
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 mt-4 pt-4 border-t border-slate-200 dark:border-slate-800">
                           {materiaTopics.map(topic => {
                             const topicTasks = tasks.filter(t => t.topicId === topic.id);
                             const completed = topicTasks.filter(t => t.status === 'completed').length;
@@ -978,15 +1033,18 @@ export default function App() {
     const sortedExams = [...exams].sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Exámenes</h2>
-          <Button onClick={() => setIsExamModalOpen(true)}>
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Exámenes</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Control de evaluaciones y calificaciones</p>
+          </div>
+          <Button onClick={() => setIsExamModalOpen(true)} className="w-full sm:w-auto h-9 text-xs sm:text-sm">
             <Plus className="mr-2 h-4 w-4" /> Nuevo Examen
           </Button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {sortedExams.map(exam => {
             const daysLeft = differenceInDays(parseISO(exam.date), startOfDay(new Date()));
             const isPast = daysLeft < 0;
@@ -1126,32 +1184,37 @@ export default function App() {
 
     return (
       <div className="space-y-6">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Estadísticas por Materia</h2>
-            <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Estadísticas por Materia</h2>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Nivel de dominio y progreso de repasos</p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="text-xs h-9 flex items-center gap-2"
+                className="text-xs h-9 flex items-center justify-center gap-2"
                 onClick={() => setIsMateriaConfigModalOpen(true)}
               >
                 <Target className="h-4 w-4" /> Configurar Tareas
               </Button>
-              <span className="text-sm text-slate-500 dark:text-slate-400">Ordenar por:</span>
-              <Select 
-                value={statsSortOrder} 
-                onChange={(e) => setStatsSortOrder(e.target.value as any)}
-                className="w-48 text-sm"
-              >
-                <option value="creation_asc">Más antiguos primero</option>
-                <option value="creation_desc">Más recientes primero</option>
-                <option value="name_asc">Nombre (A-Z)</option>
-                <option value="name_desc">Nombre (Z-A)</option>
-                <option value="week_asc">Semana (Asc)</option>
-                <option value="week_desc">Semana (Desc)</option>
-                <option value="manual">Manual</option>
-              </Select>
+              <div className="flex items-center gap-2">
+                <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">Ordenar:</span>
+                <Select 
+                  value={statsSortOrder} 
+                  onChange={(e) => setStatsSortOrder(e.target.value as any)}
+                  className="w-full sm:w-44 text-xs sm:text-sm h-9"
+                >
+                  <option value="creation_asc">Más antiguos primero</option>
+                  <option value="creation_desc">Más recientes primero</option>
+                  <option value="name_asc">Nombre (A-Z)</option>
+                  <option value="name_desc">Nombre (Z-A)</option>
+                  <option value="week_asc">Semana (Asc)</option>
+                  <option value="week_desc">Semana (Desc)</option>
+                  <option value="manual">Manual</option>
+                </Select>
+              </div>
             </div>
           </div>
 
@@ -1239,8 +1302,8 @@ export default function App() {
                           </div>
                         </summary>
                         
-                        <div className="mt-4 overflow-x-auto">
-                          <table className="w-full text-sm text-left">
+                        <div className="mt-4 overflow-x-auto -mx-2 sm:mx-0 rounded-lg border border-slate-200 dark:border-slate-800">
+                          <table className="w-full min-w-[560px] text-sm text-left">
                             <thead className="text-xs text-slate-500 uppercase bg-slate-100 dark:bg-slate-800/50 dark:text-slate-400">
                               <tr>
                                 {statsSortOrder === 'manual' && <th className="px-4 py-3 w-16 rounded-tl-lg">Orden</th>}
@@ -1399,7 +1462,18 @@ export default function App() {
       'Domingo': format(addDays(currentWeekStart, 6), 'yyyy-MM-dd'),
     };
 
+    const GENERAL_HORARIO_MATERIAS: Materia[] = [
+      'Ciencias',
+      'Matemática',
+      'Comunicación',
+      'DPCC',
+      'Razonamiento',
+      'Idioma',
+      'Sociales'
+    ];
+
     const allAvailableMaterias: Materia[] = [
+      ...GENERAL_HORARIO_MATERIAS,
       ...Object.values(CURSOS_MATERIAS).flat(),
       'EXAMEN'
     ];
@@ -1459,54 +1533,54 @@ export default function App() {
     return (
       <div className="space-y-6">
         {/* Encabezado con título y botones de turno + botón de Frecuencia Semanal */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Horarios de Estudio</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Horarios de Estudio</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
               Organiza tus clases de la mañana y tu estudio de la tarde por tu cuenta.
             </p>
           </div>
           
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             {/* Botones de selección de turno */}
-            <div className="flex bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
+            <div className="grid grid-cols-2 sm:flex bg-slate-100 dark:bg-slate-800/90 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
               <button
                 onClick={() => setScheduleActiveTab('morning')}
-                className={`flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
                   scheduleActiveTab === 'morning'
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
-                <Sun className="w-4 h-4 text-amber-500" />
-                <span>Clases de la Mañana</span>
+                <Sun className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
+                <span className="truncate">Clases Mañana</span>
               </button>
               <button
                 onClick={() => setScheduleActiveTab('afternoon')}
-                className={`flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-lg transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all cursor-pointer ${
                   scheduleActiveTab === 'afternoon'
                     ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
                     : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
-                <Moon className="w-4 h-4 text-indigo-500" />
-                <span>Estudio de la Tarde</span>
+                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
+                <span className="truncate">Estudio Tarde</span>
               </button>
             </div>
 
             {/* Botón al lado para acceder a la Frecuencia Semanal por Materia */}
             <button
               onClick={() => setShowWeeklyFrequency(!showWeeklyFrequency)}
-              className={`flex items-center gap-2 px-3.5 py-2 text-sm font-semibold rounded-xl border transition-all cursor-pointer ${
+              className={`flex items-center justify-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl border transition-all cursor-pointer ${
                 showWeeklyFrequency
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                   : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs'
               }`}
             >
-              <Target className={`w-4 h-4 ${showWeeklyFrequency ? 'text-white' : 'text-emerald-500'}`} />
+              <Target className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${showWeeklyFrequency ? 'text-white' : 'text-emerald-500'} shrink-0`} />
               <span>Frecuencia Semanal</span>
               {totalScheduledCount > 0 && (
-                <span className={`text-[11px] font-bold px-1.5 py-0.2 rounded-md ${
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
                   showWeeklyFrequency
                     ? 'bg-white/20 text-white'
                     : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60'
@@ -1662,7 +1736,7 @@ export default function App() {
                             <span className={`text-[9px] font-semibold px-1.5 py-0.2 rounded shrink-0 ${
                               item.isGoalMet ? 'bg-white/25 text-white' : styles.badge
                             }`}>
-                              {item.course}
+                              {item.materia === item.course ? 'Materia' : item.course}
                             </span>
                           </div>
 
@@ -1732,23 +1806,102 @@ export default function App() {
           </div>
         )}
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {days.map((day, dayIdx) => {
+        {/* Mobile day-selection pills */}
+        <div className="flex sm:hidden items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+          <button
+            type="button"
+            onClick={() => setSelectedScheduleDay('all')}
+            className={`px-3 py-1.5 text-xs font-bold rounded-full shrink-0 transition-all cursor-pointer ${
+              selectedScheduleDay === 'all'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            Todos
+          </button>
+          {days.map((day) => {
+            const isToday = day === todayDayName;
+            const isSelected = selectedScheduleDay === day;
+            const count = schedule.filter(s => s.day === day && (s.section || 'morning') === scheduleActiveTab).length;
+            return (
+              <button
+                key={day}
+                type="button"
+                onClick={() => setSelectedScheduleDay(day)}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded-full shrink-0 transition-all flex items-center gap-1 cursor-pointer ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : isToday
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800'
+                }`}
+              >
+                <span>{day.slice(0, 3)}</span>
+                {count > 0 && (
+                  <span className={`text-[10px] px-1 py-0.2 rounded-full font-bold ${
+                    isSelected ? 'bg-white/25 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {count}
+                  </span>
+                )}
+                {isToday && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {(selectedScheduleDay === 'all' ? days : days.filter(d => d === selectedScheduleDay)).map((day) => {
+            const dayIdx = days.indexOf(day);
             const isToday = day === todayDayName;
             const dayDateStr = format(addDays(currentWeekStart, dayIdx), 'yyyy-MM-dd');
             const dayEntries = schedule.filter(s => s.day === day && (s.section || 'morning') === scheduleActiveTab);
+            const isDayTargeted = dragOverDay === day && draggedScheduleId !== null;
             
             return (
-              <Card key={day} className={`flex flex-col h-full border ${isToday ? 'ring-2 ring-emerald-500 dark:ring-emerald-400 border-transparent bg-slate-50/40 dark:bg-slate-900/40' : 'border-slate-200 dark:border-slate-800'}`}>
+              <Card 
+                key={day} 
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverDay !== day) setDragOverDay(day);
+                }}
+                onDragLeave={(e) => {
+                  if (e.currentTarget === e.target) setDragOverDay(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggedScheduleId) {
+                    reorderScheduleEntryToPosition(draggedScheduleId, day, scheduleActiveTab, dayEntries.length);
+                  }
+                  setDraggedScheduleId(null);
+                  setDragOverDay(null);
+                  setDragOverEntryId(null);
+                }}
+                className={`flex flex-col h-full border transition-all ${
+                  isDayTargeted
+                    ? 'ring-2 ring-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
+                    : isToday 
+                      ? 'ring-2 ring-emerald-500 dark:ring-emerald-400 border-transparent bg-slate-50/40 dark:bg-slate-900/40' 
+                      : 'border-slate-200 dark:border-slate-800'
+                }`}
+              >
                 <CardHeader className={`pb-2 border-b transition-colors ${
                   isToday 
                     ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-100 dark:border-emerald-900/30' 
                     : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'
                 }`}>
                   <div className="flex items-center justify-between">
-                    <CardTitle className={`text-base font-bold ${
-                      isToday ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'
-                    }`}>{day}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className={`text-base font-bold ${
+                        isToday ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'
+                      }`}>{day}</CardTitle>
+                      {dayEntries.length > 0 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {dayEntries.length}
+                        </span>
+                      )}
+                    </div>
                     {isToday && (
                       <span className="text-[10px] font-bold uppercase bg-emerald-500 text-white px-2 py-0.5 rounded-full">
                         Hoy
@@ -1756,47 +1909,106 @@ export default function App() {
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 flex-1 flex flex-col gap-2">
-                  {dayEntries.map(entry => {
+                <CardContent className="pt-3 pb-3 flex-1 flex flex-col gap-2">
+                  {dayEntries.map((entry, index) => {
                     const isCompletedToday = entry.completedDates?.includes(dayDateStr);
                     const styles = getMateriaStyles(entry.materia, !!isCompletedToday);
+                    const isDraggingThis = draggedScheduleId === entry.id;
+                    const isDragOverThis = dragOverEntryId === entry.id;
                     
                     return (
                       <div 
                         key={entry.id} 
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', entry.id);
+                          setDraggedScheduleId(entry.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedScheduleId(null);
+                          setDragOverDay(null);
+                          setDragOverEntryId(null);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.dataTransfer.dropEffect = 'move';
+                          if (dragOverEntryId !== entry.id) setDragOverEntryId(entry.id);
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverEntryId === entry.id) setDragOverEntryId(null);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (draggedScheduleId && draggedScheduleId !== entry.id) {
+                            reorderScheduleEntryToPosition(draggedScheduleId, day, scheduleActiveTab, index);
+                          }
+                          setDraggedScheduleId(null);
+                          setDragOverDay(null);
+                          setDragOverEntryId(null);
+                        }}
                         onClick={() => {
                           if (!isCompletedToday) {
                             triggerAnimation();
                           }
                           toggleScheduleEntryCompleted(entry.id, dayDateStr);
                         }}
-                        className={`flex items-center justify-between border p-3 rounded-lg transition-all cursor-pointer select-none ${styles.card}`}
+                        className={`group relative flex items-center justify-between gap-2 border p-2.5 rounded-xl transition-all cursor-pointer select-none ${
+                          styles.card
+                        } ${
+                          isDraggingThis ? 'opacity-40 scale-95 border-dashed' : ''
+                        } ${
+                          isDragOverThis ? 'ring-2 ring-emerald-500 scale-[1.02]' : ''
+                        }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${styles.checkbox}`}>
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          {/* Grip discreto para arrastrar y reordenar */}
+                          <div 
+                            className="cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-80 p-0.5 rounded text-current shrink-0 transition-opacity" 
+                            title="Arrastra para reordenar arriba/abajo o mover a otro día"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+
+                          {/* Checkbox de completado */}
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${styles.checkbox}`}>
                             {isCompletedToday && <Check className="w-3 h-3 stroke-[3]" />}
                           </div>
-                          <span className={`text-sm font-semibold transition-colors ${styles.text}`}>{entry.materia}</span>
+
+                          {/* Nombre de la materia claro y visible */}
+                          <span 
+                            className={`text-sm font-bold tracking-tight transition-colors truncate ${styles.text}`}
+                            title={entry.materia}
+                          >
+                            {entry.materia}
+                          </span>
                         </div>
+
+                        {/* Botón Eliminar materia */}
                         <button 
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             deleteScheduleEntry(entry.id);
                           }} 
-                          className={`p-1 rounded transition-colors ${
+                          title="Eliminar materia"
+                          className={`p-1 rounded transition-all shrink-0 opacity-40 group-hover:opacity-100 ${
                             isCompletedToday 
-                              ? 'text-white/70 hover:text-white hover:bg-white/10' 
-                              : 'text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              ? 'text-white hover:bg-white/20' 
+                              : 'text-slate-400 hover:text-rose-500 hover:bg-slate-200/60 dark:hover:bg-slate-700/60'
                           }`}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
                     );
                   })}
                   
                   {dayEntries.length === 0 && (
-                    <p className="text-xs text-slate-400 italic text-center py-4">No programado</p>
+                    <div className="text-xs text-slate-400 italic text-center py-6 border border-dashed border-slate-200 dark:border-slate-800/80 rounded-lg">
+                      {draggedScheduleId ? 'Suelta aquí para mover a este día' : 'No programado'}
+                    </div>
                   )}
                   
                   <Button 
@@ -1828,35 +2040,38 @@ export default function App() {
     }).reverse();
 
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Hábitos</h2>
-          <Button onClick={() => setIsHabitModalOpen(true)} size="sm" className="gap-2">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Hábitos Diarios</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Seguimiento de constancia y racha semanal</p>
+          </div>
+          <Button onClick={() => setIsHabitModalOpen(true)} size="sm" className="gap-2 w-full sm:w-auto h-9 text-xs sm:text-sm">
             <Plus className="h-4 w-4" /> Nuevo Hábito
           </Button>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden border-slate-200 dark:border-slate-800">
           <CardContent className="p-0 overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full min-w-[500px] text-sm text-left">
               <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-800/50 dark:text-slate-400">
                 <tr>
-                  <th className="px-4 py-3 rounded-tl-lg w-1/3">Hábito</th>
+                  <th className="px-4 py-3 rounded-tl-lg min-w-[140px] sticky left-0 bg-slate-50 dark:bg-slate-800 z-10 border-r border-slate-200/60 dark:border-slate-700">Hábito</th>
                   {last7Days.map(date => (
                     <th key={date} className="px-2 py-3 text-center">
                       <div className="flex flex-col items-center">
                         <span className="text-[10px] text-slate-400">{format(parseISO(date), 'EEE', { locale: es })}</span>
-                        <span>{format(parseISO(date), 'd')}</span>
+                        <span className="font-bold">{format(parseISO(date), 'd')}</span>
                       </div>
                     </th>
                   ))}
-                  <th className="px-4 py-3 rounded-tr-lg w-16"></th>
+                  <th className="px-3 py-3 rounded-tr-lg w-12 text-center"></th>
                 </tr>
               </thead>
               <tbody>
                 {habits.map(habit => (
-                  <tr key={habit.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0">
-                    <td className="px-4 py-3">
+                  <tr key={habit.id} className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td className="px-4 py-3 sticky left-0 bg-white dark:bg-slate-900 z-10 border-r border-slate-100 dark:border-slate-800">
                       <div className="font-medium text-slate-900 dark:text-slate-100">{habit.name}</div>
                       <div className="flex gap-1 mt-1">
                         {['L', 'M', 'X', 'J', 'V', 'S', 'D'].map((letter, i) => {
@@ -1926,37 +2141,42 @@ export default function App() {
 
   const renderTutores = () => {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4 sm:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Tutores</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Agrega enlaces de imágenes para personalizar tu tutor diario.</p>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Galería de Tutores</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Agrega enlaces de imágenes para personalizar tu tutor diario.</p>
           </div>
         </div>
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Añadir nuevo tutor</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Añadir nuevo tutor</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
                 placeholder="URL de la imagen (ej. https://...)"
                 value={newTutorUrl}
                 onChange={e => setNewTutorUrl(e.target.value)}
-                className="flex-1"
+                className="flex-1 text-xs sm:text-sm h-9"
               />
-              <Button onClick={() => {
-                if (newTutorUrl.trim()) {
-                  setTutors([...tutors, newTutorUrl.trim()]);
-                  setNewTutorUrl('');
-                }
-              }}>Añadir</Button>
+              <Button 
+                className="w-full sm:w-auto h-9 text-xs sm:text-sm"
+                onClick={() => {
+                  if (newTutorUrl.trim()) {
+                    setTutors([...tutors, newTutorUrl.trim()]);
+                    setNewTutorUrl('');
+                  }
+                }}
+              >
+                Añadir
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {tutors.map((url, idx) => (
             <Card key={idx} className="overflow-hidden relative group border-slate-200 dark:border-slate-800">
               <img src={url} alt={`Tutor ${idx + 1}`} className="w-full h-48 object-cover" referrerPolicy="no-referrer" />
@@ -1998,8 +2218,55 @@ export default function App() {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 flex flex-col md:flex-row font-sans text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col flex-shrink-0 h-full overflow-y-auto">
+      {/* Mobile Top Header (hidden on desktop) */}
+      <header className="md:hidden flex-shrink-0 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between z-30">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
+            <BookOpen className="h-5 w-5" />
+          </div>
+          <span className="font-bold text-base tracking-tight text-slate-900 dark:text-slate-100">CasaniPlanner</span>
+        </div>
+
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Mini Tutor Avatar button / heart trigger */}
+          <button 
+            type="button"
+            onClick={triggerAnimation}
+            className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 px-2 py-1 rounded-full border border-slate-200/70 dark:border-slate-700/80 transition-colors cursor-pointer"
+            title="Tutor del día - Pulsa para celebrar"
+          >
+            <img src={currentTutorImage} alt="Tutor" className="w-5 h-5 rounded-full object-cover shrink-0" referrerPolicy="no-referrer" />
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-0.5">
+              <CheckCircle2 className="w-3 h-3" /> {totalCompletedToday}
+            </span>
+          </button>
+
+          {/* Dark Mode toggle */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 text-slate-600 dark:text-slate-300"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            title={isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
+          >
+            {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+
+          {/* Menu Drawer toggle */}
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8 text-slate-600 dark:text-slate-300"
+            onClick={() => setIsMobileMenuOpen(true)}
+            title="Abrir menú"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
+      </header>
+
+      {/* Desktop Sidebar (hidden on mobile) */}
+      <aside className="hidden md:flex md:w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex-col flex-shrink-0 h-full overflow-y-auto">
         <div className="p-6 flex-shrink-0">
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <BookOpen className="h-6 w-6 text-emerald-600" />
@@ -2133,8 +2400,8 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 h-full overflow-y-auto p-6 md:p-8">
+      {/* Main Content Area */}
+      <main className="flex-1 w-full min-w-0 h-full overflow-y-auto p-3.5 sm:p-5 md:p-8 pb-20 md:pb-8">
         <div className="max-w-5xl mx-auto">
           {currentView === 'agenda' && renderAgenda()}
           {currentView === 'temas' && renderTemas()}
@@ -2145,6 +2412,223 @@ export default function App() {
           {currentView === 'tutores' && renderTutores()}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation Bar (Thumb Zone) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 px-1 py-1.5 flex items-center justify-around">
+        <button
+          type="button"
+          onClick={() => setCurrentView('agenda')}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            currentView === 'agenda' 
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105' 
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <Calendar className="h-5 w-5" />
+          <span className="text-[10px] mt-0.5">Agenda</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setCurrentView('temas')}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            currentView === 'temas' 
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105' 
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <BookOpen className="h-5 w-5" />
+          <span className="text-[10px] mt-0.5">Temas</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setCurrentView('horario')}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            currentView === 'horario' 
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105' 
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <CalendarDays className="h-5 w-5" />
+          <span className="text-[10px] mt-0.5">Horario</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setCurrentView('habitos')}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            currentView === 'habitos' 
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105' 
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <Activity className="h-5 w-5" />
+          <span className="text-[10px] mt-0.5">Hábitos</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsMobileMenuOpen(true)}
+          className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-all cursor-pointer ${
+            ['examenes', 'estadisticas', 'tutores'].includes(currentView) 
+              ? 'text-emerald-600 dark:text-emerald-400 font-bold scale-105' 
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+          }`}
+        >
+          <MoreHorizontal className="h-5 w-5" />
+          <span className="text-[10px] mt-0.5">Más</span>
+        </button>
+      </nav>
+
+      {/* Mobile Drawer (Side Sheet) */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex justify-end">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="relative w-4/5 max-w-xs h-full bg-white dark:bg-slate-900 shadow-2xl flex flex-col z-10 overflow-y-auto"
+            >
+              <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="p-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600">
+                    <BookOpen className="h-5 w-5" />
+                  </div>
+                  <span className="font-bold text-base text-slate-900 dark:text-slate-100">CasaniPlanner</span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="h-8 w-8 rounded-full text-slate-500"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Mobile Tutor card */}
+              <div className="p-4 pb-2">
+                <div 
+                  onClick={triggerAnimation}
+                  className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-xs relative cursor-pointer group"
+                >
+                  <img src={currentTutorImage} alt="Tutor del día" className="w-full h-36 object-contain bg-slate-50 dark:bg-slate-800" referrerPolicy="no-referrer" />
+                  <div className="absolute top-2 right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {totalCompletedToday} hoy
+                  </div>
+                  <div className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    Tutor del día (¡Toca para amor!)
+                  </div>
+                </div>
+              </div>
+
+              {/* Full navigation list */}
+              <nav className="p-3 space-y-1 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-3 pb-1">Navegación</p>
+                <button
+                  onClick={() => { setCurrentView('agenda'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'agenda' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-emerald-500" /> Agenda
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  onClick={() => { setCurrentView('temas'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'temas' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BookOpen className="h-4 w-4 text-blue-500" /> Temas
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  onClick={() => { setCurrentView('examenes'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'examenes' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <GraduationCap className="h-4 w-4 text-purple-500" /> Exámenes
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  onClick={() => { setCurrentView('estadisticas'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'estadisticas' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart2 className="h-4 w-4 text-amber-500" /> Estadísticas
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  onClick={() => { setCurrentView('horario'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'horario' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CalendarDays className="h-4 w-4 text-indigo-500" /> Horario
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  onClick={() => { setCurrentView('habitos'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'habitos' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Activity className="h-4 w-4 text-rose-500" /> Hábitos
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+                <button
+                  onClick={() => { setCurrentView('tutores'); setIsMobileMenuOpen(false); }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    currentView === 'tutores' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Users className="h-4 w-4 text-teal-500" /> Tutores
+                  </div>
+                  <ChevronRight className="h-4 w-4 opacity-40" />
+                </button>
+              </nav>
+
+              {/* Drawer actions at bottom */}
+              <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2 bg-slate-50/50 dark:bg-slate-800/30">
+                <Button variant="outline" size="sm" className="w-full justify-start h-9 text-xs" onClick={() => { handleExport(); setIsMobileMenuOpen(false); }}>
+                  <Download className="mr-2 h-4 w-4" /> Exportar Datos
+                </Button>
+                <label className="flex items-center w-full justify-start px-3 py-2 text-xs font-medium border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900">
+                  <Upload className="mr-2 h-4 w-4" /> Importar Datos
+                  <input type="file" accept=".json" onChange={(e) => { handleImport(e); setIsMobileMenuOpen(false); }} className="hidden" />
+                </label>
+                <Button variant="ghost" size="sm" className="w-full justify-start h-9 text-xs" onClick={() => setIsDarkMode(!isDarkMode)}>
+                  {isDarkMode ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
+                  {isDarkMode ? 'Modo Claro' : 'Modo Oscuro'}
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Habit Modal */}
       <Modal isOpen={isHabitModalOpen} onClose={() => setIsHabitModalOpen(false)} title="Agregar Nuevo Hábito">
@@ -2208,8 +2692,25 @@ export default function App() {
               value={newScheduleEntry.materia} 
               onChange={(e) => setNewScheduleEntry({ ...newScheduleEntry, materia: e.target.value as Materia })}
             >
-              <option value="EXAMEN">EXAMEN</option>
-              {Object.values(CURSOS_MATERIAS).flat().map(m => <option key={m} value={m}>{m}</option>)}
+              <optgroup label="Materias del Horario">
+                <option value="Ciencias">Ciencias</option>
+                <option value="Matemática">Matemática</option>
+                <option value="Comunicación">Comunicación</option>
+                <option value="DPCC">DPCC</option>
+                <option value="Razonamiento">Razonamiento</option>
+                <option value="Idioma">Idioma</option>
+                <option value="Sociales">Sociales</option>
+              </optgroup>
+              <optgroup label="Especiales">
+                <option value="EXAMEN">EXAMEN</option>
+              </optgroup>
+              {Object.entries(CURSOS_MATERIAS).map(([curso, materias]) => (
+                <optgroup key={curso} label={`Cursos Específicos: ${curso}`}>
+                  {materias.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </optgroup>
+              ))}
             </Select>
           </div>
           <div>
